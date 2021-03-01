@@ -66,7 +66,7 @@ export default function Breakout() {
 
   return (
     <>
-      <Text x={650} y={2} text={`VIE: ${life}`} style={{ color: "white" }} />
+      <Text x={650} y={2} text={`LIFE: ${life}`} style={{ color: "white" }} />
       <Text x={2} y={2} text={`SCORE: ${score}`} style={{ color: "white" }} />
       <Text x={2} y={18} text={`BONUS: x${bonus}`} style={{ color: "white" }} />
       <Text
