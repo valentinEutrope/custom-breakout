@@ -35,7 +35,7 @@ function Ball(
       }
 
       // reset when ball leaves bottom of screen
-      if (ball.y > 800) {
+      if (ball.y > 800 && !snapToPaddle) {
         ball.setVelocity(0);
         onReset();
       }

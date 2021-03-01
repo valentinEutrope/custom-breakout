@@ -1,14 +1,10 @@
-import React, {
-  useCallback,
-  useReducer,
-  useRef,
-  useEffect,
-  useState,
-} from "react";
+import React, { useCallback, useReducer, useRef, useEffect } from "react";
 import { useGameLoop, useInputEvent, useScene, Text } from "react-phaser-fiber";
+
 import Ball from "./Ball";
 import Block from "./Block";
 import Paddle from "./Paddle";
+import Config from "./config";
 
 export default function Breakout() {
   const scene = useScene();
@@ -16,26 +12,15 @@ export default function Breakout() {
   const ballRef = useRef<Phaser.Physics.Arcade.Image>(null);
 
   const [state, dispatch] = useReducer(reducer, defaultState);
-  const [life, setLife] = useState(3);
-  const [score, setScore] = useState(0);
-  const [bonus, setBonus] = useState(1);
-  const [currentSequence, setCurrentSequence] = useState(0);
-  const [precSequence, setPrecSequence] = useState(0);
 
   useEffect(() => {
     // set collisions on all edges of world except bottom
     scene.physics.world.setBoundsCollision(true, true, true, false);
 
-    if (life <= 0) {
-      setLife(3);
-      setScore(0);
-      setBonus(1);
-      setCurrentSequence(0);
-      setPrecSequence(0);
-
+    if (state.life <= 0) {
       dispatch({ type: "RESET_GAME" });
     }
-  }, [scene, life, currentSequence, precSequence, bonus]);
+  }, [scene, state.life]);
 
   useGameLoop(
     useCallback(() => {
@@ -66,13 +51,28 @@ export default function Breakout() {
 
   return (
     <>
-      <Text x={650} y={2} text={`LIFE: ${life}`} style={{ color: "white" }} />
-      <Text x={2} y={2} text={`SCORE: ${score}`} style={{ color: "white" }} />
-      <Text x={2} y={18} text={`BONUS: x${bonus}`} style={{ color: "white" }} />
+      <Text
+        x={650}
+        y={2}
+        text={`LIFE: ${state.life}`}
+        style={{ color: "white" }}
+      />
+      <Text
+        x={2}
+        y={2}
+        text={`SCORE: ${state.score}`}
+        style={{ color: "white" }}
+      />
+      <Text
+        x={2}
+        y={18}
+        text={`BONUS: x${state.bonus}`}
+        style={{ color: "white" }}
+      />
       <Text
         x={2}
         y={36}
-        text={`SEQUENCE: ${currentSequence}`}
+        text={`SEQUENCE: ${state.currentSequence}`}
         style={{ color: "white" }}
       />
       <Paddle ref={paddleRef} initialX={400} initialY={700} />
@@ -84,11 +84,7 @@ export default function Breakout() {
           // reset ball position if it exits bottom of screen
           if (ballRef.current && ballRef.current.y > 800) {
             ballRef.current.setVelocity(0);
-            setBonus(1);
-            setCurrentSequence(0);
-            setPrecSequence(0);
             dispatch({ type: "RESET_BALL" });
-            setLife(life - 1);
           }
         }}
       />
@@ -100,16 +96,6 @@ export default function Breakout() {
           frame={frame}
           onBallHit={() => {
             dispatch({ type: "BLOCK_HIT", payload: key });
-            setScore(score + 50 * bonus);
-            setCurrentSequence(currentSequence + 1);
-
-            if (
-              currentSequence >= 4 &&
-              Math.round((precSequence + 4) / 2) * bonus <= currentSequence
-            ) {
-              setBonus(bonus + 1);
-              setPrecSequence(currentSequence);
-            }
           }}
         />
       ))}
@@ -119,11 +105,21 @@ export default function Breakout() {
 
 interface BreakoutState {
   isBallActive: boolean;
+  life: number;
+  score: number;
+  bonus: number;
+  currentSequence: number;
+  precSequence: number;
   blocks: Array<{ x: number; y: number; frame: string; key: number }>;
 }
 
 const defaultState: BreakoutState = {
   isBallActive: false,
+  life: 3,
+  score: 0,
+  bonus: 1,
+  currentSequence: 0,
+  precSequence: 0,
   blocks: Array.from({ length: 60 }).map((_, index) => {
     // possible sprites to use for block
     const blockFrames = [
@@ -151,13 +147,35 @@ function reducer(
 ): BreakoutState {
   switch (action.type) {
     case "RESET_GAME": {
-      return defaultState;
+      return {
+        ...defaultState,
+        life: Config.game.initLife,
+        score: 0,
+        bonus: 1,
+        currentSequence: 0,
+        precSequence: 0,
+      };
     }
     case "RESET_BALL": {
-      return {
-        ...state,
-        isBallActive: false,
-      };
+      /*
+       *  When ball is lost, action is call twice
+       *  cause isBallActive. So turn off isBallActive first,
+       *  and return new score and life in second time.
+       */
+
+      return state.isBallActive
+        ? {
+            ...state,
+            isBallActive: false,
+          }
+        : {
+            ...state,
+            life: state.life - 1,
+            bonus: 1,
+            currentSequence: 0,
+            precSequence: 0,
+            isBallActive: false,
+          };
     }
     case "PLAY": {
       return {
@@ -166,8 +184,24 @@ function reducer(
       };
     }
     case "BLOCK_HIT": {
+      let newBonus = state.bonus;
+      let newPrecSequence = state.precSequence;
+
+      if (
+        state.currentSequence >= 4 &&
+        Math.round((state.precSequence + 4) / 2) * state.bonus <=
+          state.currentSequence
+      ) {
+        newBonus++;
+        newPrecSequence = state.currentSequence;
+      }
+
       return {
         ...state,
+        score: state.score + Config.block.defaultScore * state.bonus,
+        currentSequence: state.currentSequence + 1,
+        bonus: newBonus,
+        precSequence: newPrecSequence,
         blocks: state.blocks.filter((block) => block.key !== action.payload),
       };
     }
